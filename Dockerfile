@@ -1,2 +1,2 @@
 FROM logstash
-ADD logstash.conf
+ADD logstash.conf \
