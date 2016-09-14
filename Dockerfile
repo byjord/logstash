@@ -49,6 +49,3 @@ RUN set -ex \
 
 COPY script.sh /
 COPY logstash.conf /etc/logstash/conf.d/redis.conf
-
-ENTRYPOINT ["/script.sh"]
-CMD ["-e", ""]
