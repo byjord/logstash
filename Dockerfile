@@ -1,44 +1,19 @@
-FROM openjdk:8-jre
+FROM nuagebec/ubuntu:latest
 
-# install plugin dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-		libzmq3 \
+RUN apt-get update && apt-get apt-get install -y --no-install-recommends \
+		libzmq3 software-properties-common python3-software-properties python-software-properties \
 	&& rm -rf /var/lib/apt/lists/*
 
-# the "ffi-rzmq-core" gem is very picky about where it looks for libzmq.so
-RUN mkdir -p /usr/local/lib \
-	&& ln -s /usr/lib/*/libzmq.so.3 /usr/local/lib/libzmq.so
+RUN add-apt-repository -y ppa:webupd8team/java && apt-get update
 
-# grab gosu for easy step-down from root
-ENV GOSU_VERSION 1.7
-RUN set -x \
-	&& wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$(dpkg --print-architecture)" \
-	&& wget -O /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$(dpkg --print-architecture).asc" \
-	&& export GNUPGHOME="$(mktemp -d)" \
-	&& gpg --keyserver ha.pool.sks-keyservers.net --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4 \
-	&& gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu \
-	&& rm -r "$GNUPGHOME" /usr/local/bin/gosu.asc \
-	&& chmod +x /usr/local/bin/gosu \
-	&& gosu nobody true
+RUN apt-get -y install oracle-java8-installer
 
-# https://www.elastic.co/guide/en/logstash/2.3/package-repositories.html
-# https://packages.elastic.co/GPG-KEY-elasticsearch
-RUN apt-key adv --keyserver ha.pool.sks-keyservers.net --recv-keys 46095ACC8548582C1A2699A9D27D666CD88E42B4
+RUN echo 'deb http://packages.elastic.co/logstash/2.2/debian stable main' | sudo tee /etc/apt/sources.list.d/logstash-2.2.x.list && apt-get update
 
-ENV LOGSTASH_MAJOR 5.0
-ENV LOGSTASH_VERSION 1:5.0.0~alpha5-1
+RUN apt-get install logstash
 
-RUN echo "deb http://packages.elastic.co/logstash/${LOGSTASH_MAJOR}/debian stable main" > /etc/apt/sources.list.d/logstash.list
+COPY ./10-syslog-filter.conf /etc/logstash/conf.d/10-syslog-filter.conf
+COPY ./30-input-output.conf /etc/logstash/conf.d/30-input-output.conf
 
-RUN set -x \
-	&& apt-get update \
-	&& apt-get install -y --no-install-recommends logstash=$LOGSTASH_VERSION \
-	&& rm -rf /var/lib/apt/lists/*
-
-ENV PATH /usr/share/logstash/bin:$PATH
-
-# necessary for 5.0+ (overriden via "--path.settings", ignored by < 5.0)
-ENV LS_SETTINGS_DIR /etc/logstash
-
-COPY script.sh /start-up.sh
-COPY logstash.conf /etc/logstash/conf.d/logstash.conf
+RUN service logstash restart
+RUN update-rc.d logstash defaults 96 9
